@@ -1,0 +1,5 @@
+Django>=6.1,<6.2
+djangorestframework>=3.18
+requests>=2.32
+numpy>=2.0
+python-dotenv>=1.0

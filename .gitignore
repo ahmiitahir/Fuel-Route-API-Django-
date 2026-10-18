@@ -1,0 +1,23 @@
+# Python / Django
+.venv/
+__pycache__/
+*.pyc
+db.sqlite3
+
+# Secrets and local config
+.env
+
+# Editor / tool folders (local only)
+.claude/
+.cursor/
+.vscode/
+.idea/
+.agents/
+graphify-out/
+CLAUDE.md
+AGENTS.md
+
+# Local-only files
+data/downloads/
+DEMO_GUIDE.md
+*.log
