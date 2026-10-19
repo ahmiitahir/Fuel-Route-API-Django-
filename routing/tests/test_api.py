@@ -135,6 +135,26 @@ class InputTests(TestCase):
         self.assertEqual(inputs.resolve("35.47, -97.52").source, "coordinates")
         self.assertEqual(inputs.resolve("35.47 -97.52").lat, 35.47)
 
+    def test_bare_city_name_uses_gazetteer_without_api_call(self):
+        with mock.patch.object(ors, "geocode", side_effect=AssertionError("no API call expected")):
+            p = inputs.resolve("Oklahoma City")
+        self.assertEqual((p.source, p.note), ("gazetteer", ""))
+
+    def test_ambiguous_bare_name_picks_largest_and_says_so(self):
+        Place.objects.bulk_create([
+            Place(name="Miami city", state="FL", norm_name="miami", lat=25.77, lon=-80.20, land_sq_mi=36),
+            Place(name="Miami city", state="OK", norm_name="miami", lat=36.87, lon=-94.87, land_sq_mi=8),
+        ])
+        with mock.patch.object(ors, "geocode", side_effect=AssertionError("no API call expected")):
+            p = inputs.resolve("Miami")
+        self.assertEqual(p.label, "Miami city, FL")
+        self.assertIn("matched several states", p.note)
+
+    def test_unknown_bare_name_falls_back_to_geocoder(self):
+        with mock.patch.object(ors, "geocode", return_value=(35.0, -97.0, "Nowhereville, OK")) as g:
+            self.assertEqual(inputs.resolve("Nowhereville").source, "geocoder")
+        g.assert_called_once()
+
     def test_unknown_text_falls_back_to_geocoder_once(self):
         with mock.patch.object(ors, "geocode", return_value=(35.0, -97.0, "Somewhere, OK")) as g:
             p = inputs.resolve("123 Main St, Norman")

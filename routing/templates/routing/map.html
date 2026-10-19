@@ -56,6 +56,7 @@
       <div class="stat"><b id="s-gal"></b><span>gallons (10 mpg)</span></div>
       <div class="stat"><b id="s-stops"></b><span>fuel stops</span></div>
     </div>
+    <div id="notes" class="stop" hidden></div>
     <div id="start-fuel"></div>
     <div id="stops"></div>
     <p><a id="json-link" href="#" target="_blank" rel="noopener">View raw JSON</a></p>
@@ -67,9 +68,23 @@
 <script>
 const API_URL = "{{ api_url }}";
 const map = L.map("map").setView([39.5, -98.35], 4);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 18, attribution: "&copy; OpenStreetMap contributors"
+// OpenStreetMap blocks tile requests that carry no Referer, so send the page origin.
+const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 18, attribution: "&copy; OpenStreetMap contributors",
+  referrerPolicy: "strict-origin-when-cross-origin"
 }).addTo(map);
+// If OSM still refuses tiles (policy block, offline, rate limit), switch to a second free provider.
+const carto = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+  maxZoom: 19, subdomains: "abcd",
+  attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+});
+let usingFallback = false;
+osm.on("tileerror", () => {
+  if (usingFallback) return;
+  usingFallback = true;
+  map.removeLayer(osm);
+  carto.addTo(map);
+});
 const layer = L.layerGroup().addTo(map);
 
 const $ = id => document.getElementById(id);
@@ -106,6 +121,9 @@ function render(d, jsonUrl) {
   $("s-dist").textContent = d.distance_miles.toLocaleString();
   $("s-gal").textContent = d.total_gallons.toLocaleString();
   $("s-stops").textContent = d.fuel_stops.length;
+  const notes = [d.start.note, d.finish.note].filter(Boolean);
+  $("notes").innerHTML = notes.map(n => `<small>${esc(n)}</small>`).join("");
+  $("notes").hidden = notes.length === 0;
   $("start-fuel").innerHTML = d.starting_fuel
     ? `<div class="stop"><h3>Start: ${esc(d.start.label)}</h3><small>${d.starting_fuel.gallons} gal @ ${money(d.starting_fuel.price_per_gallon)} = ${money(d.starting_fuel.cost)}</small></div>` : "";
   $("stops").innerHTML = d.fuel_stops.map(s =>

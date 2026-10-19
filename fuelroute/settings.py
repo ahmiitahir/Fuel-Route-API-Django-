@@ -127,6 +127,10 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
+# Django's default ("same-origin") stops the browser sending a Referer to the map tile
+# server, and OpenStreetMap blocks tile requests that have none ("403 Access blocked").
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [

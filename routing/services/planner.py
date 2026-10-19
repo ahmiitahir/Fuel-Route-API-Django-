@@ -24,6 +24,14 @@ class NoFeasiblePlan(Exception):
     """Route cannot be driven with the given range using stations in the dataset."""
 
 
+def _endpoints(start: Point, finish: Point) -> dict:
+    """Labels/notes come from THIS request's wording, never from a cached one."""
+    return {
+        "start": {"label": start.label, "lat": start.lat, "lon": start.lon, "note": start.note},
+        "finish": {"label": finish.label, "lat": finish.lat, "lon": finish.lon, "note": finish.note},
+    }
+
+
 def _money(x) -> Decimal:
     return Decimal(str(x)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
@@ -36,7 +44,7 @@ def _cache_key(start: Point, finish: Point) -> str:
 def plan_trip(start: Point, finish: Point) -> dict:
     key = _cache_key(start, finish)
     if (hit := cache.get(key)) is not None:
-        return {**hit, "cached": True}
+        return {**hit, **_endpoints(start, finish), "cached": True}
 
     route, provider = routes.directions((start.lat, start.lon), (finish.lat, finish.lon))  # the 1 API call
 
@@ -128,8 +136,7 @@ def _build_result(start, finish, route, cum, total_miles, plan, index, used_corr
         }
 
     return {
-        "start": {"label": start.label, "lat": start.lat, "lon": start.lon},
-        "finish": {"label": finish.label, "lat": finish.lat, "lon": finish.lon},
+        **_endpoints(start, finish),
         "distance_miles": round(total_miles, 1),
         "duration_minutes": round(route.duration_minutes),
         "route": {"type": "Feature", "properties": {}, "geometry": geometry},

@@ -46,6 +46,7 @@ class Point:
     lat: float
     lon: float
     source: str  # "coordinates" | "gazetteer" | "geocoder"
+    note: str = ""  # shown to the user when we had to guess (e.g. several cities share a name)
 
 
 def in_contiguous_us(lat: float, lon: float) -> bool:
@@ -71,6 +72,25 @@ def _lookup_place(city: str, state: str) -> Place | None:
     return max(matches, key=lambda p: (-keys.index(p.norm_name), p.is_incorporated, p.land_sq_mi))
 
 
+def _lookup_bare_name(text: str) -> Point | None:
+    """'Chicago' with no state: use the local table instead of an API call.
+
+    If several states have a place with that name, take the incorporated one with the
+    largest land area (a rough proxy for "the well-known one") and say so in `note`.
+    """
+    keys = lookup_keys(text)
+    matches = list(Place.objects.filter(norm_name__in=keys))
+    if not matches:
+        return None
+    best = max(matches, key=lambda p: (-keys.index(p.norm_name), p.is_incorporated, p.land_sq_mi))
+    others = sorted({p.state for p in matches if p.state != best.state})
+    note = ""
+    if others:
+        note = (f"'{text.strip()}' matched several states; using {best.state}. "
+                f"Add a state (e.g. '{text.strip()}, {others[0]}') to choose another.")
+    return Point(f"{best.name}, {best.state}", best.lat, best.lon, "gazetteer", note)
+
+
 def resolve(text: str, field: str = "location") -> Point:
     text = (text or "").strip()
     if not text:
@@ -84,6 +104,8 @@ def resolve(text: str, field: str = "location") -> Point:
         place = _lookup_place(*cs)
         if place:
             point = Point(f"{place.name}, {place.state}", place.lat, place.lon, "gazetteer")
+    elif "," not in text and re.fullmatch(r"[A-Za-z .'\-]+", text):
+        point = _lookup_bare_name(text)
 
     if point is None:
         found = ors.geocode(text)
